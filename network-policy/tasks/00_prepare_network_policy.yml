@@ -1,36 +1,45 @@
-# Prepare for non-tenant policies
+# Prepare namespace prefix 
+## 1. for non-tenant policies or when tenant prefix is empty
 - name: Set Prefix for Namespaces
   set_fact:
     tenant_prefix: ""
-  when: not (tenant_net_pol | bool)
-  tags: always
+  when: not (tenant_net_pol | bool) 
+        or 
+        (tenant.tenant_prefix == "")
 
+## 2. Prepare for tenant policies when prefix is not empty
+- name: Set Prefix for Namespaces
+  set_fact:
+    tenant_prefix: "{{ tenant.tenant_prefix }}-"
+  when:
+    - tenant_net_pol | bool
+    - tenant.tenant_prefix != ""
+
+# Load variables from configuration files
+## 1. Use tenant policy named 00_non_tenant.yml for non-tenants
 - name: Load Non-Tenant File into 'network_policy_dict' Variable
   ansible.builtin.include_vars:
     file: vars/network_policy/00_non_tenant.yml
     name: network_policy_dict
   when: not (tenant_net_pol | bool)
 
-# Prepare for tenant policies
-- name: Set Prefix for Namespaces
-  set_fact:
-    tenant_prefix: "{{ tenant.tenant_prefix }}-"
-  when: tenant_net_pol | bool 
-  tags: always
-
-# Use tenant policy named 01_default_tenant.yml
+## 2. Use tenant policy named 01_default_tenant.yml
 - name: Load Tenant Variable File into 'network_policy_dict' Variable
   ansible.builtin.include_vars:
     file: vars/network_policy/01_default_tenant.yml
     name: network_policy_dict
-  when: (tenant_net_pol | bool) and inv_network_policy.use_default_policy
+  when:
+    - (tenant_net_pol | bool)
+    - inv_network_policy.use_default_policy
 
-# Use tenant policy named after inv_tenant.tenant_prefix
+## 3. Use tenant policy named after inv_tenant.tenant_realn
 - name: Load Tenant Variable File into 'network_policy_dict' Variable
   ansible.builtin.include_vars:
-    file: vars/network_policy/{{ tenant.tenant_prefix }}.yml
+    file: vars/network_policy/{{ tenant.tenant_realm }}.yml
     name: network_policy_dict
-  when: (tenant_net_pol | bool) and not inv_network_policy.use_default_policy
+  when:
+    - (tenant_net_pol | bool) 
+    - not inv_network_policy.use_default_policy
 
 - ansible.builtin.set_fact:
     network_policy: "{{ network_policy_dict.data }}"
